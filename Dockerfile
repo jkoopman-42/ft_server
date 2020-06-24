@@ -1,5 +1,4 @@
 FROM debian:buster
-ENV name webserver
 
 # Install needed packages
 RUN apt update && \
@@ -7,14 +6,17 @@ RUN apt update && \
 	apt install -y \
 		wget \
 		nginx \
+		sendmail \
 		mariadb-server mariadb-client \
-		php php7.3-fpm php-cgi php-mysql php-dom php-imagick php-ssh2 php-xml php-xmlreader php-curl php-date \
-		php-exif php-ftp php-gd php-iconv php-json php-mbstring php-mysqli \
-		php-posix php-sockets php-tokenizer
+		filter openssl \
+		php7.3-fpm php-curl php-date php-dom php-ftp php-gd php-iconv php-json \
+		php-mbstring php-mysqli php-posix php-sockets php-tokenizer \
+		php-xml php-xmlreader php-zip php-simplexml
 
 # Download PHPMyAdmin, Unpack & move
 RUN wget https://files.phpmyadmin.net/phpMyAdmin/4.9.3/phpMyAdmin-4.9.3-all-languages.tar.gz && \
 	tar -zxvf phpMyAdmin-4.9.3-all-languages.tar.gz && \
+	rm phpMyAdmin-4.9.3-all-languages.tar.gz && \
 	mv phpMyAdmin-4.9.3-all-languages /var/www/html/phpmyadmin
 
 # Install Nginx config
@@ -30,7 +32,7 @@ RUN openssl req -x509 -nodes -days 365 -newkey rsa:2048 -keyout /etc/ssl/private
 # Setup PHPMyAdmin config & database (+User)
 RUN service mysql start && \
 	mysql < /var/www/html/phpmyadmin/sql/create_tables.sql -u root && \
-	mysql -e "GRANT ALL PRIVILEGES ON phpmyadmin.* TO 'pma'@'localhost' IDENTIFIED BY 'admin';FLUSH PRIVILEGES;" && \
+	mysql -e "GRANT ALL PRIVILEGES ON *.* TO 'admin'@'localhost' IDENTIFIED BY 'admin' WITH GRANT OPTION;FLUSH PRIVILEGES;" && \
 	mysql -e "CREATE DATABASE wordpress;GRANT ALL PRIVILEGES ON wordpress.* TO 'admin'@'localhost' IDENTIFIED BY 'admin';FLUSH PRIVILEGES;" && \
 	chmod 660 /var/www/html/phpmyadmin/config.inc.php
 
@@ -43,7 +45,8 @@ RUN service mysql start && \
 	wp core download --allow-root && \
 	wp config create --dbname=wordpress --dbuser=admin --dbpass=admin --allow-root && \
 	wp core install --allow-root --url="/"  --title="My Sexy Blog Title" --admin_user="admin" --admin_password="admin" --admin_email="admin@jkctech.nl" && \
-	mysql -e "USE wordpress;UPDATE wp_options SET option_value='https://localhost/' WHERE option_name='siteurl' OR option_name='home';"
+	mysql -e "USE wordpress;UPDATE wp_options SET option_value='https://localhost/' WHERE option_name='siteurl' OR option_name='home';" && \
+	rm /var/www/html/index.nginx-debian.html /var/www/html/readme.html /var/www/html/wp-config-sample.php
 
 # Change PHP upload size
 RUN sed -i 's,^post_max_size =.*$,post_max_size = 10M,' /etc/php/7.3/fpm/php.ini && \
